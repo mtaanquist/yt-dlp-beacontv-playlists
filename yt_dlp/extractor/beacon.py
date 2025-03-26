@@ -5,7 +5,6 @@ from ..utils import (
     ExtractorError,
     parse_iso8601,
     traverse_obj,
-    url_or_none,
 )
 
 
@@ -82,14 +81,14 @@ class BeaconTvSeriesIE(InfoExtractor):
     def _real_extract(self, url):
         playlist_id = self._match_id(url)
         webpage = self._download_webpage(url, playlist_id)
-        
+
         # Extract series title from NextJS data
         series_data = traverse_obj(self._search_nextjs_data(webpage, playlist_id), (
             'props', 'pageProps', '__APOLLO_STATE__',
             lambda k, v: k.startswith('Series:') and v.get('slug') == playlist_id, any))
-        
+
         series_title = traverse_obj(series_data, 'title', default=playlist_id)
-        
+
         # Search for video links in the webpage
         entries = []
         for video_path in self._search_regexes(
@@ -98,14 +97,14 @@ class BeaconTvSeriesIE(InfoExtractor):
             if video_path:
                 video_url = f'https://beacon.tv/content/{video_path}'
                 entries.append(self.url_result(video_url, ie=BeaconTvIE.ie_key(), video_id=video_path))
-        
+
         # If regex approach didn't find anything, try NextJS data extraction
         if not entries:
             contents = traverse_obj(self._search_nextjs_data(webpage, playlist_id), (
                 'props', 'pageProps', '__APOLLO_STATE__',
                 lambda k, v: k.startswith('Content:') and traverse_obj(v, ('series', '__ref')) == f'Series:{playlist_id}',
             ))
-            
+
             for content in contents or []:
                 video_id = content.get('slug')
                 if video_id:
@@ -114,4 +113,3 @@ class BeaconTvSeriesIE(InfoExtractor):
                         video_url, ie=BeaconTvIE.ie_key(), video_id=video_id))
 
         return self.playlist_result(entries, playlist_id, series_title)
-    
