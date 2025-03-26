@@ -92,7 +92,7 @@ class BeaconTvSeriesIE(InfoExtractor):
         # Search for video links in the webpage
         entries = []
         for video_path in self._search_regexes(
-                [r'<a[^>]+href="/content/([\w-]+)"', r'href="/content/([\w-]+)"'], 
+                [r'<a[^>]+href="/content/([\w-]+)"', r'href="/content/([\w-]+)"'],
                 webpage, 'video links', default=[]):
             if video_path:
                 video_url = f'https://beacon.tv/content/{video_path}'
