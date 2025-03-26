@@ -5,6 +5,7 @@ from ..utils import (
     ExtractorError,
     parse_iso8601,
     traverse_obj,
+    url_or_none,
 )
 
 
@@ -66,3 +67,51 @@ class BeaconTvIE(InfoExtractor):
                 'timestamp': ('publishedAt', {parse_iso8601}),
             }),
         }
+
+class BeaconTvSeriesIE(InfoExtractor):
+    _VALID_URL = r'https?://(?:www\.)?beacon\.tv/series/(?P<id>[\w-]+)'
+    _TESTS = [{
+        'url': 'https://beacon.tv/series/critical-cooldown',
+        'info_dict': {
+            'id': 'critical-cooldown',
+            'title': 'Critical Cooldown',
+        },
+        'playlist_mincount': 1,
+    }]
+
+    def _real_extract(self, url):
+        playlist_id = self._match_id(url)
+        webpage = self._download_webpage(url, playlist_id)
+        
+        # Extract series title from NextJS data
+        series_data = traverse_obj(self._search_nextjs_data(webpage, playlist_id), (
+            'props', 'pageProps', '__APOLLO_STATE__',
+            lambda k, v: k.startswith('Series:') and v.get('slug') == playlist_id, any))
+        
+        series_title = traverse_obj(series_data, 'title', default=playlist_id)
+        
+        # Search for video links in the webpage
+        entries = []
+        for video_path in self._search_regexes(
+                [r'<a[^>]+href="/content/([\w-]+)"', r'href="/content/([\w-]+)"'], 
+                webpage, 'video links', default=[]):
+            if video_path:
+                video_url = f'https://beacon.tv/content/{video_path}'
+                entries.append(self.url_result(video_url, ie=BeaconTvIE.ie_key(), video_id=video_path))
+        
+        # If regex approach didn't find anything, try NextJS data extraction
+        if not entries:
+            contents = traverse_obj(self._search_nextjs_data(webpage, playlist_id), (
+                'props', 'pageProps', '__APOLLO_STATE__',
+                lambda k, v: k.startswith('Content:') and traverse_obj(v, ('series', '__ref')) == f'Series:{playlist_id}',
+            ))
+            
+            for content in contents or []:
+                video_id = content.get('slug')
+                if video_id:
+                    video_url = f'https://beacon.tv/content/{video_id}'
+                    entries.append(self.url_result(
+                        video_url, ie=BeaconTvIE.ie_key(), video_id=video_id))
+
+        return self.playlist_result(entries, playlist_id, series_title)
+    
