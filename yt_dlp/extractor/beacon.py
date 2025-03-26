@@ -68,6 +68,7 @@ class BeaconTvIE(InfoExtractor):
             }),
         }
 
+
 class BeaconTvSeriesIE(InfoExtractor):
     _VALID_URL = r'https?://(?:www\.)?beacon\.tv/series/(?P<id>[\w-]+)'
     _TESTS = [{
