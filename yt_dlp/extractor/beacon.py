@@ -1,4 +1,5 @@
 import json
+import re
 
 from .common import InfoExtractor
 from ..utils import (
@@ -89,14 +90,31 @@ class BeaconTvSeriesIE(InfoExtractor):
 
         series_title = traverse_obj(series_data, 'title', default=playlist_id)
 
-        # Search for video links in the webpage
+        # Search for video links in the webpage using standard _search_regex with findall=True
         entries = []
-        for video_path in self._search_regexes(
-                [r'<a[^>]+href="/content/([\w-]+)"', r'href="/content/([\w-]+)"'],
-                webpage, 'video links', default=[]):
-            if video_path:
+
+        # First pattern: with role="link" attribute
+        video_paths = self._search_regex(
+            r'<a[^>]+href="/content/([\w-]+)"', webpage,
+            'video links', default='', flags=re.DOTALL)
+
+        if video_paths:
+            for video_path in re.findall(r'([\w-]+)', video_paths):
                 video_url = f'https://beacon.tv/content/{video_path}'
-                entries.append(self.url_result(video_url, ie=BeaconTvIE.ie_key(), video_id=video_path))
+                entries.append(self.url_result(
+                    video_url, ie=BeaconTvIE.ie_key(), video_id=video_path))
+
+        # Second pattern: simple href
+        if not entries:
+            video_paths = self._search_regex(
+                r'href="/content/([\w-]+)"', webpage,
+                'video links', default='')
+
+            if video_paths:
+                for video_path in re.findall(r'([\w-]+)', video_paths):
+                    video_url = f'https://beacon.tv/content/{video_path}'
+                    entries.append(self.url_result(
+                        video_url, ie=BeaconTvIE.ie_key(), video_id=video_path))
 
         # If regex approach didn't find anything, try NextJS data extraction
         if not entries:
